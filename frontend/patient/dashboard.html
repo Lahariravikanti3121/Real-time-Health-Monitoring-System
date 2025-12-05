@@ -1,0 +1,93 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"><title>Patient Dashboard</title>
+<link rel="stylesheet" href="/assets/css/styles.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h2>Patient Dashboard</h2>
+    <div>
+      <button onclick="logout()" class="btn">Logout</button>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col card">
+      <h3>Live Charts</h3>
+      <canvas id="hrChart" height="120"></canvas>
+    </div>
+    <div class="col card">
+      <h3>Controls</h3>
+      <button class="btn btn-primary" onclick="generate()">Generate Random Health Data</button>
+      <div id="alerts"></div>
+      <h4>Book Appointment</h4>
+      <select id="nearbyDocs"></select><br><br>
+      <textarea id="apptMsg" placeholder="Message"></textarea><br>
+      <button class="btn" onclick="requestAppt()">Request Appointment</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ctxHR = document.getElementById('hrChart').getContext('2d');
+const hrChart = new Chart(ctxHR, { type:'line', data:{ labels:[], datasets:[{ label:'Heart Rate', data:[], tension:0.3 }] }, options:{ scales:{ y:{ min:30, max:160 } } } });
+
+function logout(){ localStorage.clear(); location.href='/auth/login.html'; }
+
+async function generate(){
+  const userId = localStorage.getItem('userId');
+  const res = await fetch('http://localhost:5000/health/generate/'+userId, { method:'POST' });
+  const data = await res.json();
+  pushDataToChart(data);
+  showAlerts(data);
+}
+
+function pushDataToChart(d){
+  const label = new Date(d.createdAt).toLocaleTimeString();
+  hrChart.data.labels.push(label);
+  hrChart.data.datasets[0].data.push(d.heartRate);
+  if (hrChart.data.labels.length > 20) { hrChart.data.labels.shift(); hrChart.data.datasets[0].data.shift(); }
+  hrChart.update();
+}
+
+function showAlerts(d){
+  const arr = [];
+  if (d.heartRate > 120) arr.push('High heart rate');
+  if (d.bloodPressure > 140) arr.push('High blood pressure');
+  if (d.oxygen < 92) arr.push('Low oxygen');
+  if (d.temperature > 38) arr.push('High temperature');
+
+  const el = document.getElementById('alerts');
+  el.innerHTML = '';
+  arr.forEach(a => { el.innerHTML += `<div class="alert alert-danger">${a}</div>`; });
+
+  if (arr.length > 0) {
+    el.innerHTML += `<div class="card small">If readings persist, consider booking an appointment below.</div>`;
+  }
+}
+
+async function loadNearbyDoctors(){
+  const res = await fetch('http://localhost:5000/auth/doctors');
+  const docs = await res.json();
+  const select = document.getElementById('nearbyDocs'); select.innerHTML='';
+  docs.forEach(d => { const opt = document.createElement('option'); opt.value = d._id; opt.innerText = d.name+' ('+d.city+')'; select.appendChild(opt); });
+}
+
+async function requestAppt(){
+  const doctorId = document.getElementById('nearbyDocs').value;
+  const payload = { patientId: localStorage.getItem('userId'), doctorId, message: document.getElementById('apptMsg').value };
+  const res = await fetch('http://localhost:5000/appointment/create', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
+  const data = await res.json();
+  alert(data.message || data.error);
+}
+
+const socket = io('http://localhost:5000');
+socket.on('health-update', (d) => { /* could update UI */ });
+
+window.onload = loadNearbyDoctors;
+</script>
+</body></html>
