@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"><title>Doctor Dashboard</title>
+<link rel="stylesheet" href="/assets/css/styles.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h2>Doctor Dashboard</h2>
+    <button onclick="logout()" class="btn">Logout</button>
+  </div>
+
+  <div class="row">
+    <div class="col card">
+      <h3>Live Patient Alerts</h3>
+      <div id="alerts"></div>
+    </div>
+    <div class="col card">
+      <h3>Appointments</h3>
+      <div id="appointments"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+function logout(){ localStorage.clear(); location.href='/auth/login.html'; }
+
+async function loadAppointments(){
+  const doctorId = localStorage.getItem('userId');
+  const res = await fetch('http://localhost:5000/appointment/doctor/'+doctorId);
+  const list = await res.json();
+  const el = document.getElementById('appointments'); el.innerHTML='';
+  list.forEach(a => { el.innerHTML += `<div class="card"><b>${a.patientId.name}</b><p>${a.message}</p><small>${new Date(a.createdAt).toLocaleString()}</small></div>`; });
+}
+
+const socket = io('http://localhost:5000');
+socket.on('health-update', (data) => {
+  const container = document.getElementById('alerts');
+  let txt = `User ${data.userId} - HR:${data.heartRate} BP:${data.bloodPressure} O2:${data.oxygen}`;
+  const div = document.createElement('div'); div.className='alert alert-danger'; div.innerText = txt; container.prepend(div);
+});
+
+window.onload = loadAppointments;
+</script>
+</body></html>
