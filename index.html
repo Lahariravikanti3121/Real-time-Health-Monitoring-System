@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PulseGuard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+      tailwind.config = { darkMode: 'class', theme: { extend: { colors: { slate: { 850: '#1e293b', 900: '#0f172a' } } } } }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        .dark input[type="datetime-local"] { color-scheme: dark; }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-200 h-screen flex flex-col overflow-hidden transition-colors duration-300">
+    
+    <div id="app" class="h-full flex flex-col">
+        <!-- AUTH (Same as before) -->
+        <div id="auth-container" class="flex items-center justify-center h-full relative overflow-hidden bg-slate-100 dark:bg-slate-900">
+            <div class="absolute top-1/2 left-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-[100px] -translate-y-1/2"></div>
+            <div id="login-template" class="z-10 w-full max-w-md p-8 bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl shadow-xl">
+                <div class="text-center mb-8"><h1 class="text-3xl font-bold text-slate-900 dark:text-white mb-2">PulseGuard</h1><h2 class="text-lg font-medium text-blue-500">System Access</h2></div>
+                <form id="login-form" class="space-y-5">
+                    <div><label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Email</label><input type="email" id="email" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:border-blue-500" placeholder="user@example.com"></div>
+                    <div><label class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Password</label><input type="password" id="password" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none focus:border-blue-500" placeholder="••••••"></div>
+                    <button type="submit" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg">Login</button>
+                </form>
+                <div class="text-center text-sm text-slate-500 mt-6">Don't have an account? <button id="go-to-signup" class="text-blue-500 hover:underline">Sign Up</button></div>
+            </div>
+            <div id="signup-template" class="hidden z-10 w-full max-w-md p-8 bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl border border-slate-200 dark:border-slate-700/50 rounded-2xl shadow-xl">
+                <div class="text-center mb-6"><h1 class="text-3xl font-bold text-slate-900 dark:text-white mb-2">Join PulseGuard</h1></div>
+                <form id="signup-form" class="space-y-4">
+                    <input type="text" id="signup-name" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none" placeholder="Full Name" required>
+                    <input type="email" id="signup-email" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none" placeholder="Email" required>
+                    <input type="password" id="signup-password" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none" placeholder="Password" required>
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="number" id="signup-age" class="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-3 dark:text-white outline-none" placeholder="Age" required>
+                        <select id="signup-gender" class="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-3 dark:text-white outline-none"><option>Male</option><option>Female</option></select>
+                    </div>
+                    <select id="signup-role" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none font-bold">
+                        <option value="PATIENT">I am a Patient</option><option value="DOCTOR">I am a Doctor</option>
+                    </select>
+                    <div id="doc-fields" class="hidden space-y-3">
+                        <input type="text" id="signup-spec" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none" placeholder="Specialization">
+                        <input type="text" id="signup-hosp" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg dark:text-white outline-none" placeholder="Hospital Name">
+                    </div>
+                    <button type="submit" class="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow-lg">Sign Up</button>
+                </form>
+                <div class="text-center text-sm text-slate-500 mt-4">Already have an account? <button id="go-to-login" class="text-blue-500 hover:underline">Login</button></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOOKING & PAYMENT MODAL -->
+    <div id="booking-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-md shadow-2xl p-6">
+             <div class="flex justify-between items-center mb-6">
+                 <h3 class="text-xl font-bold text-slate-900 dark:text-white">Complete Booking</h3>
+                 <span class="text-green-500 font-bold bg-green-500/10 px-3 py-1 rounded-full text-xs">Rs. 500.00</span>
+             </div>
+             
+             <form id="booking-form-real" class="space-y-4">
+                <input type="hidden" id="b-doctor-id"><input type="hidden" id="b-doctor-name">
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="block text-xs uppercase font-bold text-slate-500 mb-1">Doctor</label><select id="b-doctor" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg p-2 dark:text-white outline-none text-sm"><option>Loading...</option></select></div>
+                    <div><label class="block text-xs uppercase font-bold text-slate-500 mb-1">Date</label><input type="datetime-local" id="b-date" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg p-2 dark:text-white outline-none text-sm" required></div>
+                </div>
+
+                <!-- PAYMENT METHOD -->
+                <div class="border-t border-slate-200 dark:border-slate-700 pt-4 mt-4">
+                    <h4 class="text-sm font-bold text-slate-900 dark:text-white mb-3">Payment Method</h4>
+                    <select id="pay-method" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg p-3 dark:text-white outline-none mb-3">
+                        <option value="Card">Credit/Debit Card</option>
+                        <option value="Cash">Cash / Pay at Clinic</option>
+                        <option value="EHS">EHS / Insurance</option>
+                    </select>
+
+                    <!-- CARD FIELDS -->
+                    <div id="pay-card-fields" class="space-y-3">
+                        <input type="text" id="pay-card" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg p-3 dark:text-white outline-none" placeholder="Card Number (16 digits)" maxlength="16">
+                        <div class="grid grid-cols-2 gap-3">
+                            <input type="text" id="pay-expiry" class="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg p-3 dark:text-white outline-none" placeholder="MM/YY">
+                            <input type="password" id="pay-cvv" class="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg p-3 dark:text-white outline-none" placeholder="CVV" maxlength="3">
+                        </div>
+                    </div>
+
+                    <!-- EHS FIELDS (Hidden) -->
+                    <div id="pay-ehs-fields" class="hidden space-y-3">
+                        <input type="text" id="pay-policy" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg p-3 dark:text-white outline-none" placeholder="Policy Number">
+                        <p class="text-xs text-slate-500">Document verification will be done at the clinic.</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 mt-6">
+                    <button type="button" onclick="document.getElementById('booking-modal').classList.add('hidden')" class="flex-1 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg">Cancel</button>
+                    <button type="submit" id="btn-pay-confirm" class="flex-1 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-bold">Confirm Booking</button>
+                </div>
+             </form>
+        </div>
+    </div>
+
+    <!-- SUCCESS MODAL (New!) -->
+    <div id="success-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-sm shadow-2xl p-8 text-center animate-in zoom-in duration-300">
+             <div class="w-16 h-16 bg-green-100 dark:bg-green-900/30 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">✓</div>
+             <h3 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">Thank You!</h3>
+             <p class="text-slate-500 dark:text-slate-400 mb-6">Your appointment has been successfully booked.</p>
+             <button onclick="document.getElementById('success-modal').classList.add('hidden')" class="w-full py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold rounded-lg hover:opacity-90">Close</button>
+        </div>
+    </div>
+
+    <!-- AI MODAL -->
+    <div id="ai-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl w-full max-w-lg shadow-2xl p-6 relative">
+             <button onclick="document.getElementById('ai-modal').classList.add('hidden')" class="absolute top-4 right-4 text-slate-400 hover:text-white">✕</button>
+             <div class="flex items-center gap-3 mb-4"><div class="p-2 bg-purple-500/10 rounded-lg text-purple-500">✨</div><h3 class="text-xl font-bold text-slate-900 dark:text-white">AI Health Analysis</h3></div>
+             <div id="ai-content" class="text-slate-600 dark:text-slate-300 text-sm leading-relaxed space-y-2 min-h-[100px]"></div>
+        </div>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

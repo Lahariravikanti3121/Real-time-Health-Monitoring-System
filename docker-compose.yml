@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  # 1. Database - MongoDB
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  # 2. Caching - Redis
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  # 3. Message Queue - RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672" # AMQP protocol
+      - "15672:15672" # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  # 4. Search & Analytics - ElasticSearch
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.0
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+
+  # 5. Monitoring - Prometheus
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+
+  # 6. Visualization - Grafana
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+
+  # 7. Our Node Backend
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mongo
+      - redis
+      - rabbitmq
+      - elasticsearch
+    environment:
+      MONGO_URI: mongodb://mongo:27017/pulseguard
+      REDIS_URL: redis://redis:6379
+      RABBIT_URL: amqp://guest:guest@rabbitmq:5672
+      ES_URL: http://elasticsearch:9200
+
+  # 8. Alert Worker Service (Consumer)
+  worker:
+    build: ./backend
+    command: npm run worker
+    depends_on:
+      - rabbitmq
+      - redis
+    environment:
+      RABBIT_URL: amqp://guest:guest@rabbitmq:5672
+      REDIS_URL: redis://redis:6379
+
+volumes:
+  mongo_data:
