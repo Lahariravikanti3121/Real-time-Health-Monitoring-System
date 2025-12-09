@@ -48,7 +48,30 @@ connectRabbit();
 const UserSchema = new mongoose.Schema({ name: String, email: { type: String, unique: true }, password: String, role: { type: String, default: 'PATIENT' }, age: Number, gender: String, specialization: String, hospital: String });
 const User = mongoose.model('User', UserSchema);
 
-const PatientSchema = new mongoose.Schema({ userId: String, name: String, age: Number, gender: String, status: { type: String, default: 'Stable' }, currentVitals: { bpm: Number, spo2: Number, temp: Number }, history: { bpm: [Object], spo2: [Object] } });
+const PatientSchema = new mongoose.Schema({
+  userId: String,
+  name: String,
+  age: Number,
+  gender: String,
+  status: { type: String, default: 'Stable' },
+
+  currentVitals: {
+    bpm: Number,
+    spo2: Number,
+    temp: Number,
+    bpSys: Number,   // ✅ Blood Pressure Systolic (NEW)
+    bpDia: Number    // ✅ Blood Pressure Diastolic (NEW)
+  },
+
+  history: {
+    bpm: [Object],
+    spo2: [Object],
+    temp: [Object],     // ✅ Temperature History (NEW)
+    bpSys: [Object],   // ✅ BP Systolic History (NEW)
+    bpDia: [Object]    // ✅ BP Diastolic History (NEW)
+  }
+});
+
 const Patient = mongoose.model('Patient', PatientSchema);
 
 const AppointmentSchema = new mongoose.Schema({ userId: String, patientName: String, doctorId: String, doctorName: String, date: String, status: { type: String, default: 'Upcoming' }, payment: { amount: Number, method: String, status: String, details: String } });
@@ -68,7 +91,28 @@ app.post('/api/signup', async (req, res) => {
         const { name, email, password, role, age, gender, specialization, hospital } = req.body;
         if(await User.findOne({ email })) return res.status(400).json({ message: "Email taken" });
         const user = await User.create({ name, email, password, role, age, gender, specialization, hospital });
-        if (role === 'PATIENT') await Patient.create({ userId: user._id, name: user.name, age: age || 30, gender: gender || 'Unknown', currentVitals: { bpm: 70, spo2: 98, temp: 36.5 }, history: { bpm: [], spo2: [] } });
+        if (role === 'PATIENT') 
+  await Patient.create({ 
+    userId: user._id, 
+    name: user.name, 
+    age: age || 30, 
+    gender: gender || 'Unknown', 
+    currentVitals: { 
+      bpm: 70, 
+      spo2: 98, 
+      temp: 36.5,
+      bpSys: 120,       // ✅ ADDED
+      bpDia: 80         // ✅ ADDED
+    }, 
+    history: { 
+      bpm: [], 
+      spo2: [], 
+      temp: [],        // ✅ ADDED
+      bpSys: [],       // ✅ ADDED
+      bpDia: []        // ✅ ADDED
+    } 
+  });
+
         res.status(201).json({ message: "Created" });
     } catch (e) { res.status(500).json({ message: "Error" }); }
 });
@@ -118,42 +162,67 @@ app.delete('/api/appointments/:id', authenticateJWT, async (req, res) => {
 
 // --- VITALS & ALERTS (Fixed Name Logic) ---
 app.post('/api/vitals/:id', async (req, res) => {
-  const { bpm, spo2, temp } = req.body;
+  const { bpm, spo2, temp, bpSys, bpDia } = req.body;
   const time = new Date().toLocaleTimeString();
-  try {
-      // 1. Fetch Patient Info First
-      const patient = await Patient.findById(req.params.id);
-      const patientName = patient ? patient.name : 'Unknown Patient';
 
-      // 2. Update DB
-      await Patient.findByIdAndUpdate(req.params.id, { 
-          'currentVitals.bpm': bpm, 'currentVitals.spo2': spo2, 
-          $push: { 'history.bpm': { $each: [{ time, value: bpm }], $slice: -20 }, 'history.spo2': { $each: [{ time, value: spo2 }], $slice: -20 } } 
-      });
-      
-      // 3. Send Real-time Update
-      io.emit('vital_update', { id: req.params.id, bpm, spo2, temp });
-      
-      // 4. Critical Alert
-      if ((bpm > 110 || spo2 < 92)) {
-          if (channel) {
-            console.log(`🚨 Server: Alert for ${patientName} (${bpm} BPM)`);
-            const alert = { 
-                patientId: req.params.id, 
-                patientName: patientName, // <--- EXPLICIT NAME HERE
-                message: `High Heart Rate: ${bpm.toFixed(0)} BPM`, 
-                type: 'CRITICAL', 
-                timestamp: time 
-            };
-            channel.sendToQueue('alerts_queue', Buffer.from(JSON.stringify(alert)));
-            io.emit('alert_new', alert);
-          } else {
-              console.log("⚠️ Server: RabbitMQ not ready yet. Skipping alert.");
-          }
+  try {
+    const patient = await Patient.findById(req.params.id);
+    const patientName = patient ? patient.name : 'Unknown Patient';
+
+    await Patient.findByIdAndUpdate(req.params.id, {
+      currentVitals: { bpm, spo2, temp, bpSys, bpDia },
+
+      $push: {
+        'history.bpm': { $each: [{ time, value: bpm }], $slice: -20 },
+        'history.spo2': { $each: [{ time, value: spo2 }], $slice: -20 },
+        'history.temp': { $each: [{ time, value: temp }], $slice: -20 },       // ✅ NEW
+        'history.bpSys': { $each: [{ time, value: bpSys }], $slice: -20 },     // ✅ NEW
+        'history.bpDia': { $each: [{ time, value: bpDia }], $slice: -20 }      // ✅ NEW
       }
-      res.send('ok');
-  } catch(e) { console.error(e); res.status(500).send('error'); }
+    });
+
+    // ✅ LIVE UPDATE TO FRONTEND
+// ✅ LIVE UPDATE TO FRONTEND  (✅ CORRECT FIX)
+io.emit('vital_update', {
+  id: req.params.id,
+  bpm: bpm,
+  spo2: spo2,
+  temp: temp,
+  bpSys: bpSys,
+  bpDia: bpDia
 });
+
+
+
+    // ✅ CRITICAL ALERT LOGIC (FOR ALL)
+    if (
+      bpm > 110 ||
+      spo2 < 92 ||
+      temp > 38 ||
+      bpSys > 150 ||
+      bpDia > 95
+    ) {
+      const alert = {
+        patientId: req.params.id,
+        patientName,
+        message: `Critical Vitals Detected!`,
+        type: 'CRITICAL',
+        timestamp: time
+      };
+
+      if (channel) {
+        channel.sendToQueue('alerts_queue', Buffer.from(JSON.stringify(alert)));
+        io.emit('alert_new', alert);
+      }
+    }
+
+    res.send('ok');
+  } catch (e) {
+    console.error(e);
+    res.status(500).send('error');
+  }
+});
+
 
 app.get('/api/search', async (req, res) => { try { const patients = await Patient.find({ name: new RegExp(req.query.q, 'i') }); res.json(patients); } catch (e) { res.json([]); } });
 
