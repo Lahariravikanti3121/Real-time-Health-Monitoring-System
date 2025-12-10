@@ -1,0 +1,34 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Signup</title>
+<link rel="stylesheet" href="/assets/css/styles.css"></head>
+<body>
+<div class="container">
+  <h2>Signup Test</h2>
+  <input id="name" placeholder="Name"><br><br>
+  <input id="email" placeholder="Email"><br><br>
+  <input id="password" type="password" placeholder="Password"><br><br>
+  <select id="role">
+    <option value="patient">Patient</option>
+    <option value="doctor">Doctor</option>
+  </select><br><br>
+  <input id="city" placeholder="City (for nearby)"><br><br>
+  <button class="btn btn-primary" onclick="signup()">Signup</button>
+  <p id="msg"></p>
+</div>
+<script>
+async function signup(){
+  const payload = {
+  name: document.getElementById("name").value.trim(),
+  email: document.getElementById("email").value.trim(),
+  password: document.getElementById("password").value.trim(),
+  role: document.getElementById("role").value,
+  city: document.getElementById("city").value.trim()
+};
+  console.log("SENDING PAYLOAD:", payload);
+  const res = await fetch('http://localhost:5000/auth/signup', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  const data = await res.json();
+  document.getElementById('msg').innerText = data.message || data.error;
+  if (data.message) setTimeout(()=>location.href='/auth/login.html', 800);
+}
+</script>
+</body></html>
