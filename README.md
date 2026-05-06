@@ -23,3 +23,6 @@ cd frontend
 npx http-server -p 8080
 # open http://localhost:8080
 ```
+
+## Contribution
+Improved documentation and added project details.
